@@ -14,6 +14,46 @@ env:
   STEP_5_FILE: ".github/steps/5-step.md"
 
 jobs:
+  automated_tests:
+    name: Backend and frontend tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright browser
+        run: python -m playwright install --with-deps chromium
+
+      - name: Start FastAPI
+        run: uvicorn src.app:app --host 127.0.0.1 --port 8000 > /tmp/uvicorn.log 2>&1 &
+
+      - name: Wait for FastAPI
+        run: |
+          python - <<'PY'
+          import time
+          import urllib.request
+
+          for _ in range(30):
+              try:
+                  urllib.request.urlopen("http://127.0.0.1:8000/activities", timeout=1)
+                  break
+              except Exception:
+                  time.sleep(1)
+          else:
+              raise SystemExit("FastAPI did not start")
+          PY
+
+      - name: Run API and browser tests
+        run: pytest -q --base-url=http://127.0.0.1:8000
+
   find_exercise:
     name: Find Exercise Issue
     uses: skills/exercise-toolkit/.github/workflows/find-exercise-issue.yml@v0.8.1
